@@ -1,0 +1,105 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique @db.VarChar(255)
+  username        String   @unique @db.VarChar(50)
+  displayName     String   @db.VarChar(100) @map("display_name")
+  bio             String?  @db.Text
+  profileImageUrl String?  @db.VarChar(255) @map("profile_image_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  posts         Post[]
+  followers     Follow[] @relation("UserFollowers")
+  following     Follow[] @relation("UserFollowing")
+  favoritePosts Like[]
+  sentComments  Comment[]
+
+  @@map("users")
+}
+
+model Post {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  content   String    @db.VarChar(280)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  postedBy   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postImages PostImage[]
+  likedBy    Like[]
+  comments   Comment[]
+
+  @@map("posts")
+}
+
+model PostImage {
+  id         String   @id @default(cuid())
+  postId     String   @map("post_id")
+  imageUrl   String   @db.VarChar(255) @map("image_url")
+  imageOrder Int      @map("image_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("post_images")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@map("likes")
+}
+
+model Comment {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  postId          String    @map("post_id")
+  parentCommentId String?   @map("parent_comment_id")
+  content         String    @db.VarChar(280)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  commentedBy   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commentedPost Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentComment Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
