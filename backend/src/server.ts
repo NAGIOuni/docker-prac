@@ -7,6 +7,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import { config } from "dotenv";
+import usersRouter from "./routes/users.js";
 
 config();
 
@@ -23,6 +24,8 @@ app.use(
 app.use(morgan("combined"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use("/api/users", usersRouter);
 
 app.get("/health", (req: Request, res: Response) => {
   res.json({
