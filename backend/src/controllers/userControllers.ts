@@ -1,14 +1,14 @@
 import { prisma } from "../lib/prisma.js";
 import type { Request, Response } from "express";
-import type { CreateUserRequest } from "../types/user.js";
+import type { CreateUserRequest, UpdateUserRequest } from "../types/user.js";
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany();
     res.status(200).json(users);
-  } catch (err) {
-    console.error("Get users error:", err);
-    res.status(500).json({ error: err });
+  } catch (error) {
+    console.error("Get users error:", error);
+    res.status(500).json({ error: error });
   }
 };
 
@@ -25,8 +25,8 @@ export const getUserById = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
     return res.status(200).json(user);
-  } catch (err) {
-    console.error("Get user error:", err);
+  } catch (error) {
+    console.error("Get user error:", error);
     res.status(500).json({ error: "Failed to get user" });
   }
 };
@@ -62,8 +62,60 @@ export const createUser = async (req: Request, res: Response) => {
       data: newUser,
       message: "User created successfully",
     });
-  } catch (err) {
-    console.error("Create user error:", err);
+  } catch (error) {
+    console.error("Create user error:", error);
     return res.status(500).json({ error: "Failed to create user" });
+  }
+};
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const { displayName, bio, profileImageUrl }: UpdateUserRequest = req.body;
+    const id = req.params.id;
+
+    if (!id) {
+      return res.status(400).json({ error: "ID is required" });
+    }
+
+    const updateData: any = {};
+    if (displayName !== undefined) updateData.displayName = displayName;
+    if (bio !== undefined) updateData.bio = bio;
+    if (profileImageUrl !== undefined)
+      updateData.profileImageUrl = profileImageUrl;
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: updateData,
+    });
+    return res.status(200).json({
+      success: true,
+      data: updatedUser,
+      message: "User updaated successfully",
+    });
+  } catch (error) {
+    console.error("Update user error: ", error);
+    return res.status(500).json({ error: "Failed to update user" });
+  }
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+
+    if (!id) {
+      return res.status(400).json({ error: "ID is required" });
+    }
+
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    console.error("User delete error: ", error);
+    return res.status(500).json({ error: "Failed to delete user" });
   }
 };

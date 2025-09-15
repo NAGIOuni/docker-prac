@@ -16,3 +16,9 @@ export interface CreateUserRequest {
   bio?: string;
   profileImageUrl?: string;
 }
+
+export interface UpdateUserRequest {
+  displayName?: string;
+  bio?: string;
+  profileImageUrl?: string;
+}
