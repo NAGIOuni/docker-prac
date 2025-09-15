@@ -9,6 +9,26 @@ export interface User {
   updatedAt: Date;
 }
 
+export interface PublicUser {
+  id: string;
+  username: string;
+  displayName: string;
+  bio?: string;
+  profileImageUrl?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserCount {
+  posts: number;
+  followers: number;
+  following: number;
+}
+
+export interface PublicUserWithCount extends PublicUser {
+  _count: UserCount;
+}
+
 export interface CreateUserRequest {
   email: string;
   username: string;
@@ -21,4 +41,48 @@ export interface UpdateUserRequest {
   displayName?: string;
   bio?: string;
   profileImageUrl?: string;
+}
+
+export interface GetUsersQuery {
+  page?: number;
+  limit?: number;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface Pagination {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: Pagination;
+}
+
+export interface CreateUserResponse extends ApiResponse<User> {
+  message: string;
+}
+
+export interface GetUserResponse
+  extends ApiResponse<User & { _count: UserCount }> {}
+
+export interface GetUsersResponse
+  extends ApiResponse<PaginatedResponse<PublicUserWithCount>> {}
+
+export interface UpdateUserResponse extends ApiResponse<User> {
+  message: string;
+}
+
+export interface DeleteUserResponse {
+  success: boolean;
+  message: string;
 }
