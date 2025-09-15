@@ -18,11 +18,31 @@ TypeScript + Next.js + Express + PostgreSQL + Docker で構築するモダンな
 
 ---
 
+## 現在の進捗状況
+
+### ✅ 完了済み項目
+
+- [x] プロジェクト構造セットアップ
+- [x] Docker 環境構築（PostgreSQL コンテナ起動済み）
+- [x] データベース設計（Prisma スキーマ）
+- [x] マイグレーション実行完了
+- [x] サンプルデータ投入済み
+- [x] Express サーバー基盤設定
+- [x] **User Controller 完全実装**
+
+### 🔄 現在作業中
+
+- [ ] 型定義ファイルの作成 (`backend/src/types/user.ts`)
+- [ ] ルート定義の実装 (`backend/src/routes/users.ts`)
+- [ ] サーバーへのルート接続 (`backend/src/server.ts`)
+
+---
+
 ## プロジェクト構成
 
 ```
 sns-platform/
-├── docker-compose.yml          # Docker環境定義
+├── docker-compose.yml          # Docker環境定義 ✅
 ├── frontend/                   # Next.jsアプリケーション
 │   ├── src/
 │   │   ├── app/               # App Router
@@ -32,15 +52,15 @@ sns-platform/
 │   └── next.config.js
 ├── backend/                    # Express APIサーバー
 │   ├── src/
-│   │   ├── controllers/       # ビジネスロジック
-│   │   ├── routes/           # APIルート定義
-│   │   ├── types/            # TypeScript型定義
-│   │   ├── lib/              # 共通ライブラリ
-│   │   └── server.ts         # メインサーバー
+│   │   ├── controllers/       # ✅ userController.ts 実装済み
+│   │   ├── routes/           # 🔄 作成済み（空）
+│   │   ├── types/            # 🔄 作成済み（空）
+│   │   ├── lib/              # ✅ prisma.ts 完成
+│   │   └── server.ts         # ✅ 基盤完成、ルート接続待ち
 │   ├── prisma/
-│   │   ├── schema.prisma     # データベーススキーマ
-│   │   ├── migrations/       # マイグレーションファイル
-│   │   └── seed.js          # サンプルデータ
+│   │   ├── schema.prisma     # ✅ 完成
+│   │   ├── migrations/       # ✅ 実行済み
+│   │   └── seed.js          # ✅ 実行済み
 │   └── package.json
 └── README.md
 ```
@@ -98,6 +118,13 @@ erDiagram
         datetime deletedAt
     }
 
+    PostImages {
+        string id PK
+        string postId FK
+        string imageUrl
+        datetime createdAt
+    }
+
     Users ||--o{ Posts : "creates"
     Users ||--o{ Follows : "follower"
     Users ||--o{ Follows : "following"
@@ -106,47 +133,64 @@ erDiagram
     Users ||--o{ Comments : "writes"
     Posts ||--o{ Comments : "receives"
     Comments ||--o{ Comments : "replies to"
+    Posts ||--o{ PostImages : "has"
 ```
 
-### 主要テーブル
+### 実装済みテーブル（Prisma Schema）
 
 #### Users（ユーザー）
 
-```sql
-CREATE TABLE "users" (
-  "id" TEXT NOT NULL PRIMARY KEY DEFAULT cuid(),
-  "email" VARCHAR(255) NOT NULL UNIQUE,
-  "username" VARCHAR(50) NOT NULL UNIQUE,
-  "display_name" VARCHAR(100) NOT NULL,
-  "bio" TEXT,
-  "profile_image_url" VARCHAR(255),
-  "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMP NOT NULL
-);
+```prisma
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  username         String   @unique
+  displayName      String
+  bio              String?
+  profileImageUrl  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // リレーション
+  posts            Post[]
+  likes            Like[]
+  comments         Comment[]
+  followers        Follow[] @relation("UserFollowers")
+  following        Follow[] @relation("UserFollowing")
+
+  @@map("users")
+}
 ```
 
 #### Posts（投稿）
 
-```sql
-CREATE TABLE "posts" (
-  "id" TEXT NOT NULL PRIMARY KEY DEFAULT cuid(),
-  "user_id" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  "content" VARCHAR(280) NOT NULL,
-  "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMP NOT NULL,
-  "deleted_at" TIMESTAMP
-);
+```prisma
+model Post {
+  id        String    @id @default(cuid())
+  userId    String
+  content   String    @db.VarChar(280)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // リレーション
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes     Like[]
+  comments  Comment[]
+  images    PostImage[]
+
+  @@map("posts")
+}
 ```
 
 ---
 
-## API 仕様
+## 実装済み User API 仕様
 
 ### ベース URL
 
 ```
 Development: http://localhost:8000/api
-Production: https://your-domain.com/api
 ```
 
 ### 共通レスポンス形式
@@ -160,83 +204,208 @@ interface ApiResponse<T> {
 }
 
 interface PaginatedResponse<T> {
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
+  data: {
+    users: T[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
   };
 }
 ```
 
-### エンドポイント一覧
+### 実装完了済みエンドポイント
 
-#### Users API
+#### 1. ユーザー作成
 
-| Method | Endpoint               | Description        | Status |
-| ------ | ---------------------- | ------------------ | ------ |
-| `GET`  | `/users`               | ユーザー一覧取得   | ✅     |
-| `GET`  | `/users/:id`           | 特定ユーザー取得   | ✅     |
-| `POST` | `/users`               | ユーザー作成       | ✅     |
-| `PUT`  | `/users/:id`           | ユーザー情報更新   | 🔄     |
-| `GET`  | `/users/:id/posts`     | ユーザーの投稿一覧 | 🔄     |
-| `GET`  | `/users/:id/followers` | フォロワー一覧     | 🔄     |
-| `GET`  | `/users/:id/following` | フォロー中一覧     | 🔄     |
+| Method | Endpoint     | Status  |
+| ------ | ------------ | ------- |
+| `POST` | `/api/users` | ✅ 完了 |
 
-#### Posts API
+**Request Body:**
 
-| Method   | Endpoint     | Description  | Status |
-| -------- | ------------ | ------------ | ------ |
-| `GET`    | `/posts`     | 投稿一覧取得 | 🔄     |
-| `GET`    | `/posts/:id` | 特定投稿取得 | 🔄     |
-| `POST`   | `/posts`     | 投稿作成     | 🔄     |
-| `PUT`    | `/posts/:id` | 投稿更新     | 🔄     |
-| `DELETE` | `/posts/:id` | 投稿削除     | 🔄     |
-
-#### Interactions API
-
-| Method   | Endpoint              | Description  | Status |
-| -------- | --------------------- | ------------ | ------ |
-| `POST`   | `/posts/:id/like`     | いいね追加   | 🔄     |
-| `DELETE` | `/posts/:id/like`     | いいね削除   | 🔄     |
-| `POST`   | `/users/:id/follow`   | フォロー     | 🔄     |
-| `DELETE` | `/users/:id/follow`   | フォロー解除 | 🔄     |
-| `POST`   | `/posts/:id/comments` | コメント作成 | 🔄     |
-| `GET`    | `/posts/:id/comments` | コメント一覧 | 🔄     |
-
-### リクエスト・レスポンス例
-
-#### ユーザー作成
-
-```http
-POST /api/users
-Content-Type: application/json
-
+```json
 {
-  "email": "alice@example.com",
-  "username": "alice",
-  "displayName": "Alice Johnson",
-  "bio": "Hello! Nice to meet you 😊"
+  "email": "user@example.com",
+  "username": "johndoe",
+  "displayName": "John Doe",
+  "bio": "Hello, I'm John!" // optional
 }
 ```
+
+**Response (201 Created):**
 
 ```json
 {
   "success": true,
   "data": {
-    "id": "cl9ebqhxk00008eef652uhkxd",
-    "email": "alice@example.com",
-    "username": "alice",
-    "displayName": "Alice Johnson",
-    "bio": "Hello! Nice to meet you 😊",
+    "id": "clxxx123456789",
+    "email": "user@example.com",
+    "username": "johndoe",
+    "displayName": "John Doe",
+    "bio": "Hello, I'm John!",
     "profileImageUrl": null,
-    "createdAt": "2023-12-01T10:00:00.000Z",
-    "updatedAt": "2023-12-01T10:00:00.000Z"
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
   },
   "message": "User created successfully"
 }
 ```
+
+#### 2. ユーザー情報取得
+
+| Method | Endpoint         | Status  |
+| ------ | ---------------- | ------- |
+| `GET`  | `/api/users/:id` | ✅ 完了 |
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clxxx123456789",
+    "username": "johndoe",
+    "displayName": "John Doe",
+    "bio": "Hello, I'm John!",
+    "profileImageUrl": null,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z",
+    "_count": {
+      "posts": 5,
+      "followers": 10,
+      "following": 8
+    }
+  }
+}
+```
+
+#### 3. ユーザー一覧取得（ページネーション付き）
+
+| Method | Endpoint                     | Status  |
+| ------ | ---------------------------- | ------- |
+| `GET`  | `/api/users?page=1&limit=10` | ✅ 完了 |
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "users": [
+      {
+        "id": "clxxx123456789",
+        "username": "johndoe",
+        "displayName": "John Doe",
+        "bio": "Hello, I'm John!",
+        "profileImageUrl": null,
+        "createdAt": "2024-01-15T10:30:00.000Z",
+        "_count": {
+          "posts": 5,
+          "followers": 10
+        }
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 5,
+      "totalItems": 50,
+      "hasNext": true,
+      "hasPrev": false
+    }
+  }
+}
+```
+
+#### 4. ユーザー情報更新
+
+| Method | Endpoint         | Status  |
+| ------ | ---------------- | ------- |
+| `PUT`  | `/api/users/:id` | ✅ 完了 |
+
+**Request Body:**
+
+```json
+{
+  "displayName": "John Smith", // optional
+  "bio": "Updated bio", // optional
+  "profileImageUrl": "https://example.com/image.jpg" // optional
+}
+```
+
+#### 5. ユーザー削除
+
+| Method   | Endpoint         | Status  |
+| -------- | ---------------- | ------- |
+| `DELETE` | `/api/users/:id` | ✅ 完了 |
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "User deleted successfully"
+}
+```
+
+### 実装待ちエンドポイント
+
+| Method | Endpoint               | Description        | Status  |
+| ------ | ---------------------- | ------------------ | ------- |
+| `GET`  | `/users/:id/posts`     | ユーザーの投稿一覧 | 🔄 待機 |
+| `GET`  | `/users/:id/followers` | フォロワー一覧     | 🔄 待機 |
+| `GET`  | `/users/:id/following` | フォロー中一覧     | 🔄 待機 |
+| `GET`  | `/users/search`        | ユーザー検索       | 🔄 待機 |
+
+---
+
+## その他の API（今後実装予定）
+
+### Posts API
+
+| Method   | Endpoint     | Description  | Status    |
+| -------- | ------------ | ------------ | --------- |
+| `GET`    | `/posts`     | 投稿一覧取得 | ❌ 未実装 |
+| `GET`    | `/posts/:id` | 特定投稿取得 | ❌ 未実装 |
+| `POST`   | `/posts`     | 投稿作成     | ❌ 未実装 |
+| `PUT`    | `/posts/:id` | 投稿更新     | ❌ 未実装 |
+| `DELETE` | `/posts/:id` | 投稿削除     | ❌ 未実装 |
+
+### Interactions API
+
+| Method   | Endpoint              | Description  | Status    |
+| -------- | --------------------- | ------------ | --------- |
+| `POST`   | `/posts/:id/like`     | いいね追加   | ❌ 未実装 |
+| `DELETE` | `/posts/:id/like`     | いいね削除   | ❌ 未実装 |
+| `POST`   | `/users/:id/follow`   | フォロー     | ❌ 未実装 |
+| `DELETE` | `/users/:id/follow`   | フォロー解除 | ❌ 未実装 |
+| `POST`   | `/posts/:id/comments` | コメント作成 | ❌ 未実装 |
+| `GET`    | `/posts/:id/comments` | コメント一覧 | ❌ 未実装 |
+
+---
+
+## 実装の特徴・ベストプラクティス
+
+### セキュリティ対策
+
+- **DoS 攻撃防止**: `Math.min(limit, 50)` による上限設定
+- **機密情報保護**: レスポンスから email フィールドを除外
+- **適切なエラーハンドリング**: Prisma エラー（P2002, P2025）の処理
+
+### パフォーマンス最適化
+
+- **並列処理**: `Promise.all` による効率的なデータ取得
+- **選択的取得**: `select` による必要フィールドのみの取得
+- **効率的ページネーション**: skip/take による実装
+
+### TypeScript 実装
+
+- **型安全性**: `unknown` 型によるエラーハンドリング
+- **ES Module**: 適切なモジュール構成
+- **型定義**: 今後 `types/user.ts` で強化予定
 
 ---
 
@@ -281,7 +450,7 @@ docker-compose up -d db
 docker-compose up -d
 ```
 
-### 4. データベース初期化
+### 4. データベース初期化（完了済み）
 
 ```bash
 cd backend
@@ -289,10 +458,10 @@ cd backend
 # Prismaクライアント生成
 npx prisma generate
 
-# マイグレーション実行
+# マイグレーション実行（完了済み）
 npx prisma migrate dev --name init
 
-# サンプルデータ投入
+# サンプルデータ投入（完了済み）
 npm run db:seed
 ```
 
@@ -309,49 +478,76 @@ cd frontend && npm run dev
 ### 6. 動作確認
 
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- Prisma Studio: http://localhost:5555
+- Backend Health Check: http://localhost:8000/health
+- Prisma Studio: `npx prisma studio` → http://localhost:5555
 
 ---
 
-## 開発フロー
+## 次の実装ステップ
 
-### 1. データベース変更
+### 🔄 最優先タスク
 
-```bash
-# schema.prisma を編集後
-npx prisma migrate dev --name add_new_field
-npx prisma generate
-```
+1. **型定義ファイルの作成**
 
-### 2. API 開発
+   ```typescript
+   // backend/src/types/user.ts
+   export interface CreateUserRequest {
+     email: string;
+     username: string;
+     displayName: string;
+     bio?: string;
+   }
 
-```bash
-# 1. 型定義作成
-src/types/newFeature.ts
+   export interface UpdateUserRequest {
+     displayName?: string;
+     bio?: string;
+     profileImageUrl?: string;
+   }
+   ```
 
-# 2. コントローラー実装
-src/controllers/newFeatureController.ts
+2. **ルート定義の実装**
 
-# 3. ルート定義
-src/routes/newFeature.ts
+   ```typescript
+   // backend/src/routes/users.ts
+   import express from "express";
+   import * as userController from "../controllers/userController.js";
 
-# 4. server.ts にルート追加
-app.use('/api/new-feature', newFeatureRouter);
-```
+   const router = express.Router();
 
-### 3. フロントエンド開発
+   router.post("/", userController.createUser);
+   router.get("/:id", userController.getUserById);
+   router.get("/", userController.getAllUsers);
+   router.put("/:id", userController.updateUser);
+   router.delete("/:id", userController.deleteUser);
 
-```bash
-# 1. APIクライアント作成
-src/lib/api.ts
+   export default router;
+   ```
 
-# 2. コンポーネント作成
-src/components/NewFeature.tsx
+3. **サーバーへのルート接続**
+   ```typescript
+   // backend/src/server.ts に追加
+   import userRoutes from "./routes/users.js";
+   app.use("/api/users", userRoutes);
+   ```
 
-# 3. ページ作成
-src/app/new-feature/page.tsx
-```
+### 🚀 Phase 1: API 完成
+
+- [ ] Post Controller 実装
+- [ ] Follow Controller 実装
+- [ ] Like Controller 実装
+- [ ] Comment Controller 実装
+
+### 🔐 Phase 2: 認証機能
+
+- [ ] JWT 認証の実装
+- [ ] ユーザー登録・ログイン機能
+- [ ] ミドルウェア認証
+
+### 🎨 Phase 3: フロントエンド実装
+
+- [ ] Next.js + TailwindCSS での UI 実装
+- [ ] API 連携
+- [ ] リアルタイム機能（WebSocket）
 
 ---
 
@@ -376,6 +572,9 @@ docker-compose down -v
 ### データベース操作
 
 ```bash
+# Prisma Studio起動
+npx prisma studio
+
 # マイグレーション
 npx prisma migrate dev --name <name>
 
@@ -384,9 +583,6 @@ npx prisma migrate reset
 
 # データベース直接接続
 docker-compose exec db psql -U snsuser -d snsplatform
-
-# Prisma Studio起動
-npx prisma studio
 ```
 
 ### 開発用
@@ -404,6 +600,34 @@ npm run type-check
 # ビルド
 npm run build
 ```
+
+### API 動作確認
+
+```bash
+# ヘルスチェック
+curl http://localhost:8000/health
+
+# ユーザー一覧取得（実装後）
+curl http://localhost:8000/api/users
+
+# ユーザー作成（実装後）
+curl -X POST http://localhost:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","username":"testuser","displayName":"Test User"}'
+```
+
+---
+
+## 実装済みサンプルデータ
+
+データベースには以下のサンプルデータが投入済みです：
+
+- **ユーザー**: Alice, Bob
+- **投稿**: 各ユーザーの投稿
+- **フォロー関係**: Alice ↔ Bob
+- **いいね**: 相互いいね
+
+Prisma Studio で確認可能です。
 
 ---
 
@@ -444,46 +668,6 @@ npx prisma migrate reset
 npx prisma migrate dev --name init
 ```
 
-#### 4. 型エラー
-
-```bash
-# 型定義インストール
-npm install -D @types/node @types/express
-
-# TypeScript設定確認
-npx tsc --noEmit
-```
-
----
-
-## デプロイメント
-
-### 環境変数（本番）
-
-```bash
-# Backend
-DATABASE_URL="postgresql://..."
-JWT_SECRET="production-secret"
-NODE_ENV="production"
-FRONTEND_URL="https://your-domain.com"
-
-# Frontend
-NEXT_PUBLIC_API_URL="https://api.your-domain.com"
-NEXTAUTH_URL="https://your-domain.com"
-```
-
-### ビルド手順
-
-```bash
-# バックエンド
-cd backend
-npm run build
-
-# フロントエンド
-cd frontend
-npm run build
-```
-
 ---
 
 ## 貢献方法
@@ -507,14 +691,6 @@ test: テスト追加
 chore: その他の変更
 ```
 
-### プルリクエスト
-
-1. feature ブランチを作成
-2. 変更を実装
-3. テストを追加
-4. プルリクエストを作成
-5. レビュー後にマージ
-
 ---
 
 ## ライセンス
@@ -525,10 +701,11 @@ MIT License
 
 ## 更新履歴
 
-| Date       | Version | Changes              |
-| ---------- | ------- | -------------------- |
-| 2023-12-01 | v0.1.0  | 初期版リリース       |
-| 2023-12-01 | v0.2.0  | ユーザー管理機能追加 |
+| Date       | Version | Changes                      |
+| ---------- | ------- | ---------------------------- |
+| 2023-12-01 | v0.1.0  | 初期版リリース               |
+| 2023-12-01 | v0.2.0  | ユーザー管理機能実装完了     |
+| 2023-12-01 | v0.2.1  | User Controller 完全実装完了 |
 
 ---
 
