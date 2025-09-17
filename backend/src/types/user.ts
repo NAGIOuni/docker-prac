@@ -3,8 +3,8 @@ export interface User {
   email: string;
   username: string;
   displayName: string;
-  bio?: string;
-  profileImageUrl?: string;
+  bio: string | null;
+  profileImageUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -13,8 +13,8 @@ export interface PublicUser {
   id: string;
   username: string;
   displayName: string;
-  bio?: string;
-  profileImageUrl?: string;
+  bio: string | null;
+  profileImageUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,19 +33,19 @@ export interface CreateUserRequest {
   email: string;
   username: string;
   displayName: string;
-  bio?: string;
-  profileImageUrl?: string;
+  bio: string | null;
+  profileImageUrl: string | null;
 }
 
 export interface UpdateUserRequest {
-  displayName?: string;
-  bio?: string;
-  profileImageUrl?: string;
+  displayName: string | null;
+  bio: string | null;
+  profileImageUrl: string | null;
 }
 
 export interface GetUsersQuery {
-  page?: number;
-  limit?: number;
+  page?: string;
+  limit?: string;
 }
 
 export interface ApiResponse<T> {

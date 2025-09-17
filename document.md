@@ -28,13 +28,14 @@ TypeScript + Next.js + Express + PostgreSQL + Docker で構築するモダンな
 - [x] マイグレーション実行完了
 - [x] サンプルデータ投入済み
 - [x] Express サーバー基盤設定
-- [x] **User Controller 完全実装**
+- [x] **User Controller 完全実装 ✨**
+- [x] **型定義ファイル実装完了 ✨**
 
 ### 🔄 現在作業中
 
-- [ ] 型定義ファイルの作成 (`backend/src/types/user.ts`)
 - [ ] ルート定義の実装 (`backend/src/routes/users.ts`)
 - [ ] サーバーへのルート接続 (`backend/src/server.ts`)
+- [ ] API 動作確認
 
 ---
 
@@ -52,9 +53,9 @@ sns-platform/
 │   └── next.config.js
 ├── backend/                    # Express APIサーバー
 │   ├── src/
-│   │   ├── controllers/       # ✅ userController.ts 実装済み
+│   │   ├── controllers/       # ✅ userController.ts 完全実装済み
 │   │   ├── routes/           # 🔄 作成済み（空）
-│   │   ├── types/            # 🔄 作成済み（空）
+│   │   ├── types/            # ✅ user.ts 実装完了
 │   │   ├── lib/              # ✅ prisma.ts 完成
 │   │   └── server.ts         # ✅ 基盤完成、ルート接続待ち
 │   ├── prisma/
@@ -193,6 +194,65 @@ model Post {
 Development: http://localhost:8000/api
 ```
 
+### 型定義システム
+
+#### 主要な型定義（types/user.ts）
+
+```typescript
+// Core User Types
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  bio: string | null;
+  profileImageUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Public User (email除外)
+export interface PublicUser {
+  id: string;
+  username: string;
+  displayName: string;
+  bio: string | null;
+  profileImageUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 統計情報
+export interface UserCount {
+  posts: number;
+  followers: number;
+  following?: number; // getAllUsersでは含まれない
+}
+
+// Request Types
+export interface CreateUserRequest {
+  email: string;
+  username: string;
+  displayName: string;
+  bio?: string | null;
+  profileImageUrl?: string | null;
+}
+
+export interface UpdateUserRequest {
+  displayName?: string;
+  bio?: string | null;
+  profileImageUrl?: string | null;
+}
+
+// Response Types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+```
+
 ### 共通レスポンス形式
 
 ```typescript
@@ -204,15 +264,13 @@ interface ApiResponse<T> {
 }
 
 interface PaginatedResponse<T> {
-  data: {
-    users: T[];
-    pagination: {
-      currentPage: number;
-      totalPages: number;
-      totalItems: number;
-      hasNext: boolean;
-      hasPrev: boolean;
-    };
+  data: T[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    hasNext: boolean;
+    hasPrev: boolean;
   };
 }
 ```
@@ -268,6 +326,7 @@ interface PaginatedResponse<T> {
   "success": true,
   "data": {
     "id": "clxxx123456789",
+    "email": "user@example.com",
     "username": "johndoe",
     "displayName": "John Doe",
     "bio": "Hello, I'm John!",
@@ -295,7 +354,7 @@ interface PaginatedResponse<T> {
 {
   "success": true,
   "data": {
-    "users": [
+    "data": [
       {
         "id": "clxxx123456789",
         "username": "johndoe",
@@ -303,6 +362,7 @@ interface PaginatedResponse<T> {
         "bio": "Hello, I'm John!",
         "profileImageUrl": null,
         "createdAt": "2024-01-15T10:30:00.000Z",
+        "updatedAt": "2024-01-15T10:30:00.000Z",
         "_count": {
           "posts": 5,
           "followers": 10
@@ -389,11 +449,17 @@ interface PaginatedResponse<T> {
 
 ## 実装の特徴・ベストプラクティス
 
+### 型安全性
+
+- **完全な型定義**: Request/Response の詳細な型定義
+- **Type Guards**: `isCreateUserRequest`, `isUpdateUserRequest` による実行時型チェック
+- **null 安全性**: Prisma スキーマと一致した `string | null` 型定義
+
 ### セキュリティ対策
 
 - **DoS 攻撃防止**: `Math.min(limit, 50)` による上限設定
-- **機密情報保護**: レスポンスから email フィールドを除外
-- **適切なエラーハンドリング**: Prisma エラー（P2002, P2025）の処理
+- **機密情報保護**: レスポンスから email フィールドを除外（一覧取得時）
+- **適切なエラーハンドリング**: Prisma エラー（P2002, P2025）の詳細処理
 
 ### パフォーマンス最適化
 
@@ -403,9 +469,9 @@ interface PaginatedResponse<T> {
 
 ### TypeScript 実装
 
-- **型安全性**: `unknown` 型によるエラーハンドリング
 - **ES Module**: 適切なモジュール構成
-- **型定義**: 今後 `types/user.ts` で強化予定
+- **ジェネリクス**: Request/Response の型パラメータ活用
+- **型安全なエラーハンドリング**: `unknown` 型による安全な処理
 
 ---
 
@@ -487,25 +553,7 @@ cd frontend && npm run dev
 
 ### 🔄 最優先タスク
 
-1. **型定義ファイルの作成**
-
-   ```typescript
-   // backend/src/types/user.ts
-   export interface CreateUserRequest {
-     email: string;
-     username: string;
-     displayName: string;
-     bio?: string;
-   }
-
-   export interface UpdateUserRequest {
-     displayName?: string;
-     bio?: string;
-     profileImageUrl?: string;
-   }
-   ```
-
-2. **ルート定義の実装**
+1. **ルート定義の実装**
 
    ```typescript
    // backend/src/routes/users.ts
@@ -523,12 +571,16 @@ cd frontend && npm run dev
    export default router;
    ```
 
-3. **サーバーへのルート接続**
+2. **サーバーへのルート接続**
+
    ```typescript
    // backend/src/server.ts に追加
    import userRoutes from "./routes/users.js";
    app.use("/api/users", userRoutes);
    ```
+
+3. **API 動作確認**
+   - Postman や curl での各エンドポイントテスト
 
 ### 🚀 Phase 1: API 完成
 
@@ -601,16 +653,16 @@ npm run type-check
 npm run build
 ```
 
-### API 動作確認
+### API 動作確認（実装後）
 
 ```bash
 # ヘルスチェック
 curl http://localhost:8000/health
 
-# ユーザー一覧取得（実装後）
+# ユーザー一覧取得
 curl http://localhost:8000/api/users
 
-# ユーザー作成（実装後）
+# ユーザー作成
 curl -X POST http://localhost:8000/api/users \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","username":"testuser","displayName":"Test User"}'
@@ -706,6 +758,7 @@ MIT License
 | 2023-12-01 | v0.1.0  | 初期版リリース               |
 | 2023-12-01 | v0.2.0  | ユーザー管理機能実装完了     |
 | 2023-12-01 | v0.2.1  | User Controller 完全実装完了 |
+| 2023-12-01 | v0.3.0  | 型定義システム実装完了 🎉    |
 
 ---
 

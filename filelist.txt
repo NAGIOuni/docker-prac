@@ -1,0 +1,27 @@
+[01;34m./backend[0m
+├── package-lock.json
+├── package.json
+├── [01;34mprisma[0m
+│   ├── [01;34mmigrations[0m
+│   │   ├── [01;34m20250831043619_init[0m
+│   │   │   └── migration.sql
+│   │   └── migration_lock.toml
+│   ├── schema.prisma
+│   └── seed.ts
+├── [01;34msrc[0m
+│   ├── [01;34mcontrollers[0m
+│   │   └── userController.ts
+│   ├── [01;34mlib[0m
+│   │   └── prisma.ts
+│   ├── [01;34mroutes[0m
+│   │   ├── follows.ts
+│   │   ├── likes.ts
+│   │   ├── posts.ts
+│   │   └── users.ts
+│   ├── server.ts
+│   └── [01;34mtypes[0m
+│       ├── index.d.ts
+│       └── user.ts
+└── tsconfig.json
+
+9 directories, 16 files
