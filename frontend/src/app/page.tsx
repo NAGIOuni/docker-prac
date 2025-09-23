@@ -1,103 +1,268 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useState, useEffect } from "react";
+import { Layout } from "@/components/layout/Layout.";
+import { PostCard } from "@/components/post/PostCard";
+import { CreatePostForm } from "@/components/post/CreatePostForm";
+import { postsApi } from "@/lib/api-client";
+import type { PostWithUser } from "@/types";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+// ダミーユーザーID（認証システム実装まで使用）
+const DUMMY_USER_ID = "cm4hxz21j0000mi08l46x5r8g"; // Alice
+
+export default function HomePage() {
+  const [posts, setPosts] = useState<PostWithUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+
+  // 投稿一覧を取得
+  const fetchPosts = async (pageNum = 1, append = false) => {
+    try {
+      if (pageNum === 1) setLoading(true);
+      else setLoadingMore(true);
+
+      const response = await postsApi.getPosts(pageNum, 10);
+
+      if (response.success) {
+        const newPosts = response.data.data;
+        const pagination = response.data.pagination;
+
+        if (append) {
+          setPosts((prev) => [...prev, ...newPosts]);
+        } else {
+          setPosts(newPosts);
+        }
+
+        setHasMore(pagination.hasNext);
+        setPage(pagination.currentPage);
+      } else {
+        setError("投稿の取得に失敗しました");
+      }
+    } catch (err) {
+      console.error("Posts fetch error:", err);
+      setError(err instanceof Error ? err.message : "投稿の取得に失敗しました");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  // 初回読み込み
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  // 投稿作成
+  const handleCreatePost = async (content: string, imageUrls?: string[]) => {
+    setCreateLoading(true);
+    try {
+      const response = await postsApi.createPost({
+        userId: DUMMY_USER_ID,
+        content,
+        imageUrls: imageUrls || [],
+      });
+
+      if (response.success) {
+        // 投稿成功後、一覧を再取得
+        await fetchPosts();
+        // 成功メッセージを表示（簡易版）
+        console.log("投稿が作成されました！");
+      } else {
+        throw new Error("投稿の作成に失敗しました");
+      }
+    } catch (err) {
+      console.error("Post creation error:", err);
+      setError(err instanceof Error ? err.message : "投稿の作成に失敗しました");
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  // いいね処理（TODO: 実装予定）
+  const handleLike = async (postId: string, isLiked: boolean) => {
+    console.log(`Like ${isLiked ? "added" : "removed"} for post:`, postId);
+    // TODO: likesApi を使って実際のいいね処理を実装
+  };
+
+  // 投稿削除
+  const handleDelete = async (postId: string) => {
+    try {
+      const response = await postsApi.deletePost(postId);
+
+      if (response.success) {
+        // 投稿をリストから削除
+        setPosts((prev) => prev.filter((post) => post.id !== postId));
+        console.log("投稿が削除されました");
+      } else {
+        throw new Error("投稿の削除に失敗しました");
+      }
+    } catch (err) {
+      console.error("Post deletion error:", err);
+      setError(err instanceof Error ? err.message : "投稿の削除に失敗しました");
+    }
+  };
+
+  // もっと読み込む
+  const loadMore = () => {
+    if (hasMore && !loadingMore) {
+      fetchPosts(page + 1, true);
+    }
+  };
+
+  // エラー状態の表示
+  if (error && posts.length === 0) {
+    return (
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg
+                  className="w-5 h-5 text-red-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">
+                  エラーが発生しました
+                </h3>
+                <div className="mt-2 text-sm text-red-700">{error}</div>
+                <div className="mt-4">
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      fetchPosts();
+                    }}
+                    className="bg-red-100 px-4 py-2 rounded-md text-red-800 text-sm hover:bg-red-200 transition-colors"
+                  >
+                    再試行
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="max-w-2xl mx-auto space-y-6 py-6">
+        {/* 投稿作成フォーム */}
+        <CreatePostForm onSubmit={handleCreatePost} isLoading={createLoading} />
+
+        {/* エラーメッセージ（投稿は表示したまま） */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <svg
+                className="w-5 h-5 text-red-400 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-red-800">エラー</h3>
+                <div className="mt-1 text-sm text-red-700">{error}</div>
+                <button
+                  onClick={() => setError(null)}
+                  className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ローディング状態（初回） */}
+        {loading && posts.length === 0 ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <span className="ml-3 text-gray-600">投稿を読み込み中...</span>
+          </div>
+        ) : (
+          /* タイムライン */
+          <div className="space-y-6">
+            {posts.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-gray-500 mb-4">
+                  <svg
+                    className="w-16 h-16 mx-auto mb-4 text-gray-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 8h10m0 0V6a2 2 0 00-2-2H9a2 2 0 00-2 2v2m0 0v10a2 2 0 002 2h6a2 2 0 002-2V8M9 12h6"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  投稿がありません
+                </h3>
+                <p className="text-gray-500">最初の投稿をしてみましょう！</p>
+              </div>
+            ) : (
+              <>
+                {posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    currentUserId={DUMMY_USER_ID}
+                    onLike={handleLike}
+                    onDelete={handleDelete}
+                  />
+                ))}
+
+                {/* もっと読み込むボタン */}
+                {hasMore && (
+                  <div className="text-center py-6">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="bg-white border border-gray-300 rounded-lg px-6 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 inline-block mr-2"></div>
+                          読み込み中...
+                        </>
+                      ) : (
+                        "もっと見る"
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </Layout>
   );
 }
