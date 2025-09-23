@@ -8,6 +8,9 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { config } from "dotenv";
 import usersRouter from "./routes/users.js";
+import postsRouter from "./routes/posts.js";
+import followsRouter from "./routes/follows.js";
+import likesRouter from "./routes/likes.js";
 
 config();
 
@@ -26,6 +29,9 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.use("/api/users", usersRouter);
+app.use("/api/posts", postsRouter);
+app.use("/api/follows", followsRouter);
+app.use("/api/likes", likesRouter);
 
 app.get("/health", (req: Request, res: Response) => {
   res.json({
